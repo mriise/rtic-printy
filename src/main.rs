@@ -1,31 +1,45 @@
 #![no_main]
 #![no_std]
 
-use panic_halt as _;
-use rtic::app;
+// extern crate panic_semihosting;  // 4004 bytes
+use panic_halt as _; // 672 bytes
 
-#[app(device = stm32f2xx_hal::stm32, dispatchers = [EXTI0])]
-mod app {
-    use rtt_target::{rprintln, rtt_init_print};
+use cortex_m_rt::entry;
+use rtt_target::{rtt_init_print, rprintln};
 
-    #[shared]
-    struct Shared {}
+use hal::{drivers::pins::Level, prelude::*};
+use lpc55_hal as hal;
 
-    #[local]
-    struct Local {}
+// pub type RedLedPin = pins::Pio1_4;
+// pub type GreenLedPin = pins::Pio1_7;
+// pub type BlueLedPin = pins::Pio1_6;
 
-    #[init]
-    fn init(_: init::Context) -> (Shared, Local, init::Monotonics) {
-        rtt_init_print!();
-        rprintln!("init");
+#[entry]
+fn main() -> ! {
+    let hal = hal::new();
+    rtt_init_print!();
 
-        print::spawn().ok();
+    let mut syscon = hal.syscon;
+    let mut gpio = hal.gpio.enabled(&mut syscon);
+    let mut iocon = hal.iocon.enabled(&mut syscon);
 
-        (Shared {}, Local {}, init::Monotonics {})
-    }
+    let pins = hal::Pins::take().unwrap();
 
-    #[task]
-    fn print(_: print::Context) {
-        rprintln!("Hello?");
+    // R = pio1_6 (for lpcxpresso)
+    let mut red = pins
+        .pio1_6
+        .into_gpio_pin(&mut iocon, &mut gpio)
+        // on = low, off = high
+        .into_output(Level::High);
+
+    loop {
+        for _ in 0..50_000 {
+            red.set_low().unwrap();
+        }
+        for _ in 0..50_000 {
+            red.set_high().unwrap();
+        }
+
+        rprintln!("toggled LED");
     }
 }
